@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the paper."
+title: "What can be measured determines what can be found: creatinine measurement intensity and baseline provenance for acute kidney injury across fourteen data sources"
+authors:
+  - family-names: Mbambara
+    given-names: Bongani
+    affiliation: "China Pharmaceutical University"
+  - family-names: Zhou
+    given-names: Jifang
+    affiliation: "China Pharmaceutical University"
+license: MIT
+repository-code: "https://github.com/[username]/aki-creatinine-ascertainment"

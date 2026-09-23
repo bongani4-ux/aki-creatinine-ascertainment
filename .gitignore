@@ -1,0 +1,19 @@
+# ---- NEVER commit patient-level data ----
+# PhysioNet and institutional data use agreements prohibit redistribution.
+analysis/data/
+data/
+*_creatinine_series.csv
+*_episode_covariates.csv
+*.csv.gz
+*.parquet
+*.xlsx
+# regenerated outputs
+analysis/results/
+analysis/figures/
+analysis/tables/
+# R / OS
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store
+Thumbs.db
