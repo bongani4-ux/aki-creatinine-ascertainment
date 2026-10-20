@@ -38,7 +38,7 @@ pA <- ggplot(d, aes(y = db, colour = setting)) +
   geom_segment(aes(x = q1, xend = q3, yend = db), linewidth = 2.6, alpha = .35) +
   geom_segment(aes(x = q3, xend = p95, yend = db), linewidth = .5, alpha = .7) +
   geom_point(aes(x = med), size = 1.9) +
-  geom_text(aes(x = p95 + 2, label = med), hjust = 0, size = 2.2, colour = "grey30") +
+  geom_text(aes(x = p95 + 2, label = ifelse(abs(med - round(med)) < 1e-9, sprintf("%d", as.integer(round(med))), sprintf("%.1f", med))), hjust = 0, size = 2.2, colour = "grey30") +
   scale_colour_manual(values = COL, guide = "none") + scale_x_continuous(limits = c(0, 78), expand = c(0, 0)) +
   labs(x = "Creatinine results per patient\n(median, IQR, 95th centile)", y = NULL,
        title = "(A) Measurement intensity") + theme_pub()
@@ -146,11 +146,12 @@ p5 <- mk("L2", "(A) AKI-evaluable", 112, TRUE) +
 save_fig(p5, "Figure5", h = 5.2)
 
 # ---------------------------------------------------------------- Supplementary Figure 1
-sub <- copy(R)[death_avail > 5][order(L3, db)]
-cats <- c(L3n = "AKD-evaluable", died7 = "Died before day 7 (undefined)", died790 = "Died day 7–90",
+sub <- copy(R)[as.logical(death_recorded) == TRUE & L1n > 0][order(L3, db)]
+cats <- c(L3n = "AKD-evaluable", nopre_n = "No pre-index value",
+          died7 = "Died before day 7 (undefined)", died790 = "Died day 7–90",
           dis90 = "Discharged, not re-tested", inh = "Other / not classifiable")
-fills <- setNames(c("#1f3d55", "#6e6e6e", "#a5a5a5", "#8c2d2d", "#c96a6a"), cats)
-seg <- melt(sub[, .(db, n, L3n, died7, died790, dis90, inh)], id.vars = c("db", "n"))
+fills <- setNames(c("#1f3d55", "#dcdcdc", "#6e6e6e", "#a5a5a5", "#8c2d2d", "#c96a6a"), cats)
+seg <- melt(sub[, .(db, n, L3n, nopre_n, died7, died790, dis90, inh)], id.vars = c("db", "n"))
 # reversed levels so the first category (AKD-evaluable) stacks at the left
 seg[, `:=`(pct = 100 * value / n, db = factor(db, levels = sub$db),
            variable = factor(cats[as.character(variable)], levels = rev(cats)))]
@@ -160,7 +161,7 @@ ps <- ggplot(seg, aes(pct, db, fill = variable)) + geom_col(width = .62) +
   scale_fill_manual(values = fills, breaks = cats) +
   scale_x_continuous(limits = c(0, 112), breaks = seq(0, 100, 20), expand = c(0, 0)) +
   labs(x = "Percentage of patients", y = NULL,
-       caption = "Bold: AKD-evaluable among patients alive and measurable") +
+       caption = "Bold: AKD-evaluable among patients with a pre-index value who were alive at day 90") +
   theme_pub() + theme(legend.position = "bottom", plot.caption = element_text(size = 6)) +
   guides(fill = guide_legend(nrow = 2, byrow = TRUE))
 save_fig(ps, "SuppFigure1", w = 7, h = 4)

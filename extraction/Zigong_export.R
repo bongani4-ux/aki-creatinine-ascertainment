@@ -12,7 +12,7 @@
 #     Zigong_creatinine_series.csv
 #     Zigong_episode_covariates.csv
 #
-# t0 = hospital admission.
+# t0 = hospital admission. All Zigong times are hours from admission.
 #
 # NOTE: this cohort is restricted to patients admitted WITH INFECTION, so it is
 # not a general ICU population. Keep that in mind when interpreting its
@@ -68,65 +68,56 @@ CREAT_PATTERN <- "\u808c\u9150|creatinin"
 EXCLUDE_PATTERN <- "\u5c3f|urin|clearance|ratio|\u6e05\u9664"
 
 # ---------------------------------------------------------------- 1. episodes
+# ALL Zigong times are numeric offsets in HOURS from hospital admission
+# (datDictionary.csv: LabTime, DISCHARGE_DATE_TIME, ICU_discharge_time,
+# Death_Date). They are not datetimes and not days. Reading them as days put
+# the "7-day" AKI window at 7 hours and cut the series at 90 hours.
+HOURS_PER_DAY <- 24
 cat("\n=== Building episode table ===\n")
 base <- fread(f_base); setnames(base, tolower(names(base)))
 outc <- fread(f_out);  setnames(outc, tolower(names(outc)))
-cat("dtBaseline columns:\n"); print(names(base))
-cat("dtOutCome columns:\n");  print(names(outc))
-
+if ("v1" %in% names(base)) base[, v1 := NULL]   # row-index column
+if ("v1" %in% names(outc)) outc[, v1 := NULL]
+need_b <- c("patient_id", "inp_no", "discharge_date_time")
+need_o <- c("patient_id", "death_date")
+if (length(setdiff(need_b, names(base)))) stop("dtBaseline missing: ", paste(setdiff(need_b, names(base)), collapse = ", "))
+if (length(setdiff(need_o, names(outc)))) stop("dtOutCome missing: ", paste(setdiff(need_o, names(outc)), collapse = ", "))
 gv <- function(dt, nm) if (nm %in% names(dt)) dt[[nm]] else rep(NA, nrow(dt))
-key <- intersect(c("inp_no","patient_id","id"), names(base))[1]
-cat(sprintf("  joining on: %s\n", key))
 
-if (key %in% names(outc)) {
-  base[[key]] <- as.character(base[[key]])
-  outc[[key]] <- as.character(outc[[key]])
-  base <- merge(base, outc, by = key, all.x = TRUE, suffixes = c("", "_out"))
-}
+# dtLab is keyed by INP_NO (hospital stay); dtOutCome by PATIENT_ID.
+base[, `:=`(patient_id = as.character(patient_id), inp_no = as.character(inp_no))]
+outc[, patient_id := as.character(patient_id)]
+if (anyDuplicated(outc$patient_id)) stop("dtOutCome has more than one row per PATIENT_ID.")
+base <- merge(base, outc[, .(patient_id, death_date, follow_vital = gv(outc, "follow_vital"))],
+              by = "patient_id", all.x = TRUE)
 
-adm <- as.POSIXct(gv(base, "admission_time"), tz = "UTC")
-if (all(is.na(adm))) adm <- as.POSIXct(gv(base, "admittime"), tz = "UTC")
-if (all(is.na(adm))) adm <- as.POSIXct(gv(base, "in_hospital_time"), tz = "UTC")
-dis <- as.POSIXct(gv(base, "discharge_time"), tz = "UTC")
-if (all(is.na(dis))) dis <- as.POSIXct(gv(base, "discharge_date_time"), tz = "UTC")
-
-# death: dtOutCome carries the discharge outcome
-out_raw <- as.character(gv(base, "outcome"))
-if (all(is.na(out_raw))) out_raw <- as.character(gv(base, "discharge_status"))
-died <- as.integer(grepl("death|died|dead|\u6b7b\u4ea1", out_raw, ignore.case = TRUE))
-
-episodes <- data.table(
-  source        = "Zigong",
-  episode_id    = as.character(base[[key]]),
-  patient_id    = as.character(gv(base, "patient_id")),
-  t0            = 0,   # LabTime offsets are measured from admission
-  admission_time = adm,
-  age           = suppressWarnings(as.numeric(gv(base, "age"))),
-  sex           = as.character(gv(base, "sex")),
-  admit_dept    = as.character(gv(base, "admitdept")),
-  infection_site= as.character(gv(base, "infectionsite")),
-  discharge_outcome = out_raw,
-  died_inhosp   = died
-)
-if (all(is.na(episodes$patient_id))) episodes[, patient_id := episode_id]
-episodes[, `:=`(
-  hosp_los_days    = as.numeric(difftime(dis, adm, units = "days")),
-  discharge_t_days = as.numeric(difftime(dis, adm, units = "days")),
-  icu_los_days     = NA_real_,
-  # Zigong records the outcome but not a death timestamp; approximate the time
-  # of death by the discharge time for those who died, and leave it NA otherwise.
-  death_t_days     = ifelse(died == 1, as.numeric(difftime(dis, adm, units = "days")), NA_real_)
+num <- function(x) suppressWarnings(as.numeric(x))
+episodes <- base[, .(
+  source           = "Zigong",
+  episode_id       = inp_no,
+  patient_id       = patient_id,
+  t0               = 0,                     # hospital admission; offsets are from admission
+  age              = num(gv(base, "age")),
+  sex              = as.character(gv(base, "sex")),
+  admit_dept       = as.character(gv(base, "admitdept")),
+  infection_site   = as.character(gv(base, "infectionsite")),
+  hosp_los_days    = num(discharge_date_time) / HOURS_PER_DAY,
+  discharge_t_days = num(discharge_date_time) / HOURS_PER_DAY,
+  icu_discharge_t_days = num(gv(base, "icu_discharge_time")) / HOURS_PER_DAY,
+  follow_vital     = as.character(follow_vital),
+  # Death_Date is death at any time during follow-up, not only in hospital.
+  death_t_days     = num(death_date) / HOURS_PER_DAY
 )]
+episodes[, died_inhosp := as.integer(!is.na(death_t_days) & death_t_days <= discharge_t_days + 1)]
 episodes[age < 0 | age > 110, age := NA]
-episodes[hosp_los_days < 0 | hosp_los_days > 365, hosp_los_days := NA]
-
 fwrite(episodes, paste0(out_dir, "Zigong_episode_covariates.csv"))
-cat(sprintf("  episodes written: %s\n", format(nrow(episodes), big.mark = ",")))
+cat(sprintf("  episodes written: %s | deaths recorded %s (in hospital %s)\n",
+            format(nrow(episodes), big.mark = ","), sum(!is.na(episodes$death_t_days)),
+            sum(episodes$died_inhosp)))
 
 # ---------------------------------------------------------------- 2. series
-# NOTE ON TIME: dtLab$LabTime is NOT a timestamp. It is a numeric offset in
-# DAYS from hospital admission (e.g. 0.600000 = 14.4 h after admission).
-# So t_days = LabTime directly; no datetime arithmetic is required.
+# NOTE ON TIME: dtLab$LabTime is a numeric offset in HOURS from hospital
+# admission (datDictionary.csv), so t_days = LabTime / 24.
 cat("\n=== Extracting creatinine series ===\n")
 lab <- fread(f_lab); setnames(lab, tolower(names(lab)))
 if ("v1" %in% names(lab)) lab[, v1 := NULL]          # drop the row-index column
@@ -146,7 +137,7 @@ if (any(is.na(c(item_col, time_col, val_col, key_col))))
 cr <- lab[grepl(CREAT_PATTERN, get(item_col), ignore.case = TRUE) &
           !grepl(EXCLUDE_PATTERN, get(item_col), ignore.case = TRUE),
           .(episode_id = as.character(get(key_col)),
-            t_days     = suppressWarnings(as.numeric(get(time_col))),
+            t_days     = suppressWarnings(as.numeric(get(time_col))) / HOURS_PER_DAY,
             value      = suppressWarnings(as.numeric(get(val_col))),
             unit_raw   = as.character(get(unit_col)))]
 cr <- cr[!is.na(value) & !is.na(t_days) & value > 0]
@@ -157,7 +148,7 @@ cat("  item labels captured:\n")
 print(unique(lab[grepl(CREAT_PATTERN, get(item_col), ignore.case = TRUE) &
                  !grepl(EXCLUDE_PATTERN, get(item_col), ignore.case = TRUE)][[item_col]]))
 cat("  units present:\n"); print(table(cr$unit_raw, useNA = "ifany"))
-cat(sprintf("  LabTime range (days from admission): %.2f to %.2f\n",
+cat(sprintf("  LabTime range (days from admission, after /24): %.2f to %.2f\n",
             min(cr$t_days), max(cr$t_days)))
 
 # ---- UNIT HANDLING: Chinese labs normally report umol/L ----
@@ -207,6 +198,6 @@ cat(sprintf("  patients %s | episodes %s | episodes per patient %.2f\n",
     format(uniqueN(episodes$patient_id), big.mark = ","),
     format(nrow(episodes), big.mark = ","),
     nrow(episodes)/uniqueN(episodes$patient_id)))
-cat("\n  NOTE: death time is approximated by discharge time for those who died,\n")
-cat("        because Zigong records the outcome but not a death timestamp.\n")
+cat("\n  NOTE: death_t_days is Death_Date (hours from admission) / 24 from dtOutCome,\n")
+cat("        covering death at any time during follow-up.\n")
 cat("\nDone. Upload BOTH files. Do not open them in Excel.\n")

@@ -1,83 +1,96 @@
-# clinical_data and lab_data are already loaded; do not clear the workspace.
+# =============================================================================
+# VitalDB  -  creatinine series + case-level covariates
+#
+# FILES NEEDED from the PhysioNet VitalDB 1.0.0 download (only these two):
+#     clinical_data.csv   one row per case (operation)
+#     lab_data.csv        caseid, dt, name, result
+#
+# Produces (in out_dir):
+#     VitalDB_creatinine_series.csv
+#     VitalDB_episode_covariates.csv
+#
+# TIME AXIS: every time in VitalDB is seconds from that case's casestart, and
+# lab_data is keyed by caseid, so a result can only be placed on the time axis
+# of its own case: t_days = (dt - opstart) / 86400. lab_data covers about 90
+# days either side of the case, so baseline tiers 3-4 (91-365 d) cannot occur.
+#
+# CREATININE: lab_data name "cr" (lab_parameters.csv: Creatinine, mg/dL,
+# reference 0.70-1.40). "ccr" is creatinine clearance and is excluded.
+# VitalDB records no death timestamp; death_inhosp is kept as a flag only.
+# =============================================================================
+
+rm(list = ls())
 library(data.table)
 
-# Assumes clinical_data and lab_data are already loaded in the R session.
-# If dt is in seconds, leave TIME_UNIT = "secs"; change to "mins" if needed.
+# ---------------------------------------------------------------- parameters
+vitaldb_dir <- "path/to/vitaldb-a-high-fidelity-multi-parameter-vital-signs-database-in-surgical-patients-1.0.0"
+out_dir     <- "path/to/export_series/"
+
 LOOKBACK_DAYS <- 365
 FOLLOWUP_DAYS <- 90
-TIME_UNIT <- "secs"
-LAB_UNIT <- "umol/L"       # change to "mg/dL" if lab_data$result is already mg/dL
-OUT_DIR <- "path/to/vitaldb"
-if (!dir.exists(OUT_DIR)) dir.create(OUT_DIR, recursive = TRUE)
+SEC_PER_DAY   <- 86400
+CREAT_NAME    <- "cr"
 
-stopifnot(exists("clinical_data"), exists("lab_data"))
-clinical <- as.data.table(copy(clinical_data))
-labs <- as.data.table(copy(lab_data))
-
-required_clin <- c("caseid", "subjectid", "opstart", "dis", "icu_days",
-                   "age", "sex", "asa", "emop", "death_inhosp")
-required_lab <- c("caseid", "dt", "name", "result")
-miss_clin <- setdiff(required_clin, names(clinical))
-miss_lab <- setdiff(required_lab, names(labs))
-if (length(miss_clin)) stop("clinical_data missing: ", paste(miss_clin, collapse = ", "))
-if (length(miss_lab)) stop("lab_data missing: ", paste(miss_lab, collapse = ", "))
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+find_tbl <- function(dir, file) {
+  hits <- list.files(dir, pattern = paste0("^", file, "$"), recursive = TRUE, full.names = TRUE)
+  hits <- hits[!dir.exists(hits)]
+  if (!length(hits)) stop("Could not find ", file, " under: ", dir)
+  cat(sprintf("  %-18s -> %s\n", file, hits[1])); hits[1]
+}
+f_clin <- find_tbl(vitaldb_dir, "clinical_data.csv")
+f_lab  <- find_tbl(vitaldb_dir, "lab_data.csv")
 
 num <- function(x) suppressWarnings(as.numeric(x))
-id <- function(x) as.character(x)
 
-# VitalDB has no death timestamp in the supplied clinical schema.
-# death_time is therefore NA; death_inhosp is retained as a flag.
-episodes <- clinical[, .(
-  episode_id = id(caseid),
-  patient_id = id(subjectid),
-  t0 = num(opstart),
-  age = num(age),
-  sex = as.character(sex),
-  ASA = num(asa),
-  emergency = num(emop),
-  hosp_los_days = num(dis) / if (TIME_UNIT == "secs") 86400 else 1440,
-  icu_los_days = num(icu_days),
-  discharge_time = num(dis),
-  death_time = NA_real_,
-  death_inhosp = num(death_inhosp)
+# ---------------------------------------------------------------- 1. episodes
+clin <- fread(f_clin)
+need <- c("caseid", "subjectid", "opstart", "dis", "age", "sex", "asa", "emop",
+          "icu_days", "death_inhosp")
+miss <- setdiff(need, names(clin))
+if (length(miss)) stop("clinical_data.csv missing: ", paste(miss, collapse = ", "))
+
+episodes <- clin[, .(
+  source         = "VitalDB",
+  episode_id     = as.character(caseid),
+  patient_id     = as.character(subjectid),
+  t0             = num(opstart),              # seconds from casestart
+  age            = num(age),
+  sex            = as.character(sex),
+  asa            = num(asa),
+  emergency      = num(emop),
+  icu_los_days   = num(icu_days),
+  discharge_time = num(dis),                  # seconds from casestart
+  discharge_t_days = (num(dis) - num(opstart)) / SEC_PER_DAY,
+  death_time     = NA_real_,                  # not recorded in VitalDB
+  died_inhosp    = num(death_inhosp)
 )]
+fwrite(episodes, file.path(out_dir, "VitalDB_episode_covariates.csv"))
+cat(sprintf("  cases written: %s (%s subjects)\n", format(nrow(episodes), big.mark = ","),
+            format(uniqueN(episodes$patient_id), big.mark = ",")))
 
-fwrite(episodes, file.path(OUT_DIR, "episode_covariates.csv"))
+# ---------------------------------------------------------------- 2. series
+lab <- fread(f_lab)
+cat("  lab names containing 'cr':", paste(sort(unique(grep("cr", lab$name, value = TRUE))),
+                                          collapse = ", "), "\n")
+cr <- lab[name == CREAT_NAME, .(episode_id = as.character(caseid), dt = num(dt),
+                                value = num(result))]
+cr <- cr[!is.na(dt) & !is.na(value) & value > 0 & value < 50]
+if (!nrow(cr)) stop("No rows with name == '", CREAT_NAME, "'. Check the printed lab names.")
 
-# Keep every lab row; filtering by name is case-insensitive and accepts common aliases.
-cr <- labs[tolower(trimws(as.character(name))) %chin%
-             c("creatinine", "serum creatinine", "creat") &
-             !is.na(result) & num(result) > 0,
-           .(episode_id = id(caseid), timestamp_raw = num(dt), value_raw = num(result))]
-cr <- cr[!is.na(timestamp_raw) & !is.na(value_raw)]
-
-# The supplied lab_data is keyed by caseid, so this join preserves available
-# indexed-case labs. If a patient-level lab table becomes available, replace
-# episode_id with patient_id and join every result to every episode of that patient.
-series <- merge(cr, episodes[, .(episode_id, patient_id, t0)],
-                 by = "episode_id", all.x = TRUE)
-series[, t_days := (timestamp_raw - t0) /
-         if (TIME_UNIT == "secs") 86400 else 1440]
-series <- series[t_days >= -LOOKBACK_DAYS & t_days <= FOLLOWUP_DAYS]
-
-if (LAB_UNIT == "umol/L") {
-  series[, value := value_raw / 88.4]
-  output_unit <- "mg/dL"
-  cat("Converted creatinine from umol/L to mg/dL using value / 88.4.\n")
-} else {
-  series[, value := value_raw]
-  output_unit <- "mg/dL"
-  cat("Creatinine treated as already in mg/dL; no conversion applied.\n")
-}
-
-series <- series[, .(episode_id, patient_id,
-                     timestamp = timestamp_raw,
-                     t_days = round(t_days, 5), value,
-                     unit = output_unit)]
+ser <- merge(cr, episodes[, .(episode_id, patient_id, t0)], by = "episode_id")
+ser[, t_days := (dt - t0) / SEC_PER_DAY]
+ser <- ser[t_days >= -LOOKBACK_DAYS & t_days <= FOLLOWUP_DAYS]
+series <- ser[, .(source = "VitalDB", episode_id, patient_id, timestamp = dt,
+                  t_days = round(t_days, 5), value, unit = "mg/dL")]
 setorder(series, episode_id, t_days)
-fwrite(series, file.path(OUT_DIR, "creatinine_series.csv"))
+fwrite(series, file.path(out_dir, "VitalDB_creatinine_series.csv"))
 
-cat(sprintf("Wrote %s episodes and %s creatinine results.\n",
-            format(nrow(episodes), big.mark = ","),
-            format(nrow(series), big.mark = ",")))
-cat("Use data.table::fread() to inspect the CSV files; do not open them in Excel.\n")
+# ---------------------------------------------------------------- 3. checks
+m <- median(series$value)
+cat(sprintf("  series written: %s rows | median %.2f mg/dL (expect ~0.7-1.0)\n",
+            format(nrow(series), big.mark = ","), m))
+if (m > 20) stop("Values look like umol/L, not mg/dL; check lab_parameters.csv.")
+cat(sprintf("  cases with >=1 result: %.1f%% | pre-t0 results %.1f%%\n",
+            100 * uniqueN(series$episode_id) / nrow(episodes), 100 * mean(series$t_days < 0)))
+cat("Done. Do not open the output in Excel.\n")

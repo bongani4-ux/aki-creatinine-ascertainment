@@ -1,5 +1,5 @@
 # =============================================================================
-# EXPORT 2 of 3 — INSPIRE  (v1.4.2 compatible)
+# INSPIRE  (v1.4.2 compatible)
 # Full creatinine measurement series + operation-level covariates
 #
 # FILES NEEDED from the PhysioNet INSPIRE download — only two:
@@ -9,11 +9,15 @@
 #
 # Produces:
 #     INSPIRE_creatinine_series.csv
-#     INSPIRE_operation_covariates.csv
+#     INSPIRE_episode_covariates.csv
 #
 # TIME AXIS: INSPIRE timestamps are integers (minutes) offset from a
-# de-identified per-subject origin. opdate and lab chart_time share that axis,
-# so t_days = (chart_time - opdate) / 1440.
+# de-identified per-subject origin. opdate, opstart_time and lab chart_time
+# share that axis. opdate is midnight of the operation day, so it is NOT used as
+# t0: pre-operative labs drawn on the morning of surgery would then fall after
+# t0, inside the AKI window. t0 is the operation start (opstart_time), as for
+# VitalDB; opdate is used only where opstart_time is missing.
+# t_days = (chart_time - t0) / 1440.
 # =============================================================================
 
 rm(list = ls())
@@ -80,7 +84,11 @@ setnames(ops, tolower(names(ops)))
 g <- function(dt, nm) if (nm %in% names(dt)) dt[[nm]] else rep(NA, nrow(dt))
 mins_to_days <- function(x, t0) (suppressWarnings(as.numeric(x)) - t0) / MIN_PER_DAY
 
-t0 <- suppressWarnings(as.numeric(ops$opdate))
+opdate <- suppressWarnings(as.numeric(ops$opdate))
+t0     <- suppressWarnings(as.numeric(g(ops, "opstart_time")))
+cat(sprintf("  t0 = opstart_time for %.1f%% of operations (opdate fallback otherwise)\n",
+            100 * mean(!is.na(t0))))
+t0[is.na(t0)] <- opdate[is.na(t0)]
 
 episodes <- data.table(
   source       = "INSPIRE",
@@ -88,6 +96,7 @@ episodes <- data.table(
   patient_id   = as.character(ops$subject_id),
   hadm_id      = as.character(g(ops, "hadm_id")),
   t0_min       = t0,
+  opdate_min   = opdate,
   age          = suppressWarnings(as.numeric(g(ops, "age"))),
   sex          = as.character(g(ops, "sex")),
   weight       = suppressWarnings(as.numeric(g(ops, "weight"))),
@@ -118,7 +127,7 @@ episodes[, `:=`(
 episodes[age < 0 | age > 110, age := NA]
 episodes[hosp_los_days < 0 | hosp_los_days > 365, hosp_los_days := NA]
 
-fwrite(episodes, paste0(out_dir, "INSPIRE_operation_covariates.csv"))
+fwrite(episodes, paste0(out_dir, "INSPIRE_episode_covariates.csv"))
 cat(sprintf("  operations written: %s rows\n", format(nrow(episodes), big.mark = ",")))
 
 # ---------------------------------------------------------------- 2. series
@@ -196,6 +205,6 @@ cat(sprintf("  covariates non-missing: age %.1f%%  sex %.1f%%  ASA %.1f%%  hosp 
 
 cat("\nDone. Upload BOTH files:\n")
 cat("  ", paste0(out_dir, "INSPIRE_creatinine_series.csv"), "\n")
-cat("  ", paste0(out_dir, "INSPIRE_operation_covariates.csv"), "\n")
+cat("  ", paste0(out_dir, "INSPIRE_episode_covariates.csv"), "\n")
 cat("If the series file exceeds ~200 MB, re-run the two fwrite calls with\n")
 cat("compress = \"gzip\" and upload the .gz versions instead.\n")

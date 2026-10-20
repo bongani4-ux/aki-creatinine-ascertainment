@@ -16,6 +16,8 @@ COUNTRY <- c("MIMIC-IV" = "USA", "eICU-CRD" = "USA", "AmsterdamUMCdb" = "Netherl
              "NJF" = "China", "ZD" = "China", "AHMU" = "China")
 f1 <- function(x) sprintf("%.1f", x)
 fn <- function(x) format(round(x), big.mark = ",", trim = TRUE)
+# quantiles of a count: whole numbers as integers, otherwise one decimal (2.5)
+fq <- function(x) ifelse(abs(x - round(x)) < 1e-9, sprintf("%d", as.integer(round(x))), sprintf("%.1f", x))
 ord <- function(d) d[order(match(db, ORDER))]
 
 R  <- ord(fread(file.path(RESULTS_DIR, "measurement_and_provenance.csv")))
@@ -26,8 +28,8 @@ out <- function(d, f) fwrite(d, file.path(OUT, f))
 
 out(R[, .(`Data source` = db, Setting = setting, Country = COUNTRY[db], `Patients, n` = fn(n),
           `Creatinine results, n` = fn(results),
-          `Results per patient, median (IQR)` = sprintf("%d (%d–%d)", med, q1, q3),
-          `95th centile` = fn(p95), Maximum = fn(mx), `Never measured, %` = f1(zero))],
+          `Results per patient, median (IQR)` = sprintf("%s (%s–%s)", fq(med), fq(q1), fq(q3)),
+          `95th centile` = fq(p95), Maximum = fn(mx), `Never measured, %` = f1(zero))],
     "Table2_measurement_intensity.csv")
 
 out(R[, .(`Data source` = db, `Tier 1 (7–30 d), %` = f1(T1), `Tier 2 (31–90 d), %` = f1(T2),
@@ -38,7 +40,8 @@ out(R[, .(`Data source` = db, `Tier 1 (7–30 d), %` = f1(T1), `Tier 2 (31–90 
 out(M[, .(`Data source` = db, `Patients, n` = fn(n),
           `Hierarchy baseline, median mg/dL (µmol/L)` = sprintf("%.2f (%.0f)", hier_med, hier_med * 88.42),
           `Proximal baseline, median mg/dL (µmol/L)` = sprintf("%.2f (%.0f)", t0_med, t0_med * 88.42),
-          `Median difference, mg/dL` = sprintf("%+.2f", diff_med), `AKI, hierarchy %` = f1(aki_hier),
+          `Median difference, mg/dL` = sprintf("%+.2f", diff_med),
+          `No value within 48 h, %` = f1(no_48h), `AKI, hierarchy %` = f1(aki_hier),
           `AKI, proximal %` = f1(aki_t0), `Difference, pp` = sprintf("%+.1f", aki_hier - aki_t0),
           `Agreement, %` = f1(agree), `Missed by proximal, %` = f1(missed),
           `Created by proximal, %` = f1(false))], "Table4_baseline_misclassification.csv")
@@ -60,13 +63,22 @@ tim <- rbindlist(lapply(ORDER, function(k) {
 }))
 out(tim, "TableS1_timing.csv")
 
-S <- R[death_avail > 5]
+# Sources that record death timing at all (not: sources where >5% died, which
+# wrongly dropped low-mortality perioperative cohorts such as INSPIRE and MOVER).
+# Death/discharge categories are counted among patients with a pre-index value;
+# patients without one are non-evaluable regardless and are shown separately.
+S <- R[as.logical(death_recorded) == TRUE & L1n > 0]
 out(S[, .(`Data source` = db, `Patients, n` = fn(n), `AKD-evaluable, n` = fn(L3n),
+          `No pre-index value, n` = fn(nopre_n),
           `Died before day 7, n` = fn(died7), `Died day 7–90, n` = fn(died790),
-          `Discharged, not re-tested, n` = fn(dis90), `AKD-evaluable, % of all` = f1(L3),
-          `AKD-evaluable, % of measurable` = f1(akd_elig))], "TableS2_undefined_vs_unmeasured_AKD.csv")
+          `Discharged, not re-tested, n` = fn(dis90), `Other, n` = fn(inh),
+          `AKD-evaluable, % of all` = f1(L3),
+          `AKD-evaluable, % of patients with a baseline alive at day 90` = f1(akd_elig))],
+    "TableS2_undefined_vs_unmeasured_AKD.csv")
 out(S[, .(`Data source` = db, `Patients, n` = fn(n), `AKI-evaluable, %` = f1(L2),
+          `No pre-index value, n` = fn(nopre_n),
           `Died <48 h, n` = fn(aki_died48), `Died 2–7 d, n` = fn(aki_died2_7),
           `Discharged <7 d, n` = fn(aki_disch7), `Alive, not measured, n` = fn(aki_unmeasured),
-          `AKI-evaluable, % of measurable` = f1(aki_elig))], "TableS3_undefined_vs_unmeasured_AKI.csv")
+          `AKI-evaluable, % of patients with a baseline alive at day 7` = f1(aki_elig))],
+    "TableS3_undefined_vs_unmeasured_AKI.csv")
 cat("tables written to", normalizePath(OUT), "\n"); print(list.files(OUT))

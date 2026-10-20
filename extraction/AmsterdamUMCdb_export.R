@@ -64,8 +64,8 @@ admissions_table <- paste0(SCHEMA, ".admissions")
 numericitems_table <- paste0(SCHEMA, ".numericitems")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
-series_path <- file.path(OUT_DIR, "creatinine_series.csv")
-episode_path <- file.path(OUT_DIR, "episode_covariates.csv")
+series_path <- file.path(OUT_DIR, "AmsterdamUMCdb_creatinine_series.csv")
+episode_path <- file.path(OUT_DIR, "AmsterdamUMCdb_episode_covariates.csv")
 log_path <- file.path(OUT_DIR, "extraction_log.txt")
 manifest_path <- file.path(OUT_DIR, "reproducibility_manifest.txt")
 

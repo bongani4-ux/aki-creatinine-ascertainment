@@ -1,10 +1,10 @@
 # =============================================================================
-# EXPORT 1 of 3 — MIMIC-IV
+# MIMIC-IV
 # Full creatinine measurement series + episode-level covariates
 #
 # Produces two files:
-#   MIMIC_creatinine_series.csv      one row per creatinine result
-#   MIMIC_episode_covariates.csv     one row per ICU stay
+#   MIMIC-IV_creatinine_series.csv      one row per creatinine result
+#   MIMIC-IV_episode_covariates.csv     one row per ICU stay
 #
 # Satisfies reporting-set item 7 (distribution of number and timing of
 # creatinine measurements per patient) and supplies age, sex, LOS and mortality.
@@ -92,7 +92,7 @@ episodes <- ep[, .(
   discharge_t_days = as.numeric(difftime(dischtime, intime, units = "days"))
 )]
 
-fwrite(episodes, paste0(out_dir, "MIMIC_episode_covariates.csv"))
+fwrite(episodes, paste0(out_dir, "MIMIC-IV_episode_covariates.csv"))
 cat(sprintf("  episodes: %s rows written\n", format(nrow(episodes), big.mark = ",")))
 
 # ---------------------------------------------------------------- 2. series
@@ -133,7 +133,7 @@ series <- ser[, .(
 )]
 setorder(series, episode_id, t_days)
 
-fwrite(series, paste0(out_dir, "MIMIC_creatinine_series.csv"))
+fwrite(series, paste0(out_dir, "MIMIC-IV_creatinine_series.csv"))
 cat(sprintf("  series: %s rows written\n", format(nrow(series), big.mark = ",")))
 
 # ---------------------------------------------------------------- 3. checks
@@ -159,6 +159,6 @@ cat(sprintf("  age non-missing: %.1f%%   sex non-missing: %.1f%%\n",
             100 * mean(!is.na(episodes$age)), 100 * mean(!is.na(episodes$sex))))
 
 cat("\nDone. Upload BOTH files:\n")
-cat("  ", paste0(out_dir, "MIMIC_creatinine_series.csv"), "\n")
-cat("  ", paste0(out_dir, "MIMIC_episode_covariates.csv"), "\n")
+cat("  ", paste0(out_dir, "MIMIC-IV_creatinine_series.csv"), "\n")
+cat("  ", paste0(out_dir, "MIMIC-IV_episode_covariates.csv"), "\n")
 cat("If the series file is very large, split by episode_id or gzip it before upload.\n")

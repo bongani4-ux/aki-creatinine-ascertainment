@@ -1,4 +1,9 @@
-
+# =============================================================================
+# NWICU (Northwestern ICU, PhysioNet 0.1.0) - creatinine series + ICU-stay covariates
+# Produces NWICU_creatinine_series.csv and NWICU_episode_covariates.csv.
+# In-hospital death is derived from timestamps, not hospital_expire_flag
+# (see docs/methods_notes.md).
+# =============================================================================
 
 rm(list = ls())
 library(data.table)

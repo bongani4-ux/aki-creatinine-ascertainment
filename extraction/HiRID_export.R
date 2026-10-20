@@ -153,6 +153,12 @@ cr <- cr[, .(patient_id = as.character(patientid),
              charttime  = as.POSIXct(datetime, tz = "UTC"),
              value      = suppressWarnings(as.numeric(value)))]
 cr <- cr[!is.na(value) & !is.na(charttime) & value > 0]
+# The published export contained each draw 2-5 times (same patient, second and
+# value: 114,181 of 190,520 rows), from overlapping part files under the glob
+# and/or more than one matching variableid. Keep one row per draw.
+n_before <- nrow(cr)
+cr <- unique(cr, by = c("patient_id", "charttime", "value"))
+cat(sprintf("  exact duplicate rows removed: %s\n", format(n_before - nrow(cr), big.mark = ",")))
 
 # ---- UNIT HANDLING: HiRID reports creatinine in umol/L ----
 med_raw <- median(cr$value)
