@@ -20,10 +20,14 @@ can trigger spurious errors.
 | VitalDB | `VitalDB_export.R` | research team | rewritten to read the PhysioNet files; reproduces the published VitalDB results exactly |
 | eICU-CRD | `eICU-CRD_export.R` | research team | as run (episode and patient counts match the paper); output names standardised, `unitvisitnumber` / `hospitaldischargeyear` added |
 | MOVER (EPIC) | `MOVER_export.R` | research team | as run (episode and patient counts match the paper); comments translated, output names standardised, `t0_source` added |
-| ZD, NJF, AHMU | `institutional/*_export.R` | research team | wrappers; **helper `export_creatinine.py` to be added** |
+| ZD, NJF, AHMU | — | hospital data teams | exported on site to `institutional/template_institutional_export.R`; extraction code not public (see below) |
 
 `institutional/template_institutional_export.R` is the specification template given to
-the institutional data teams.
+the institutional data teams. The three institutional exports were produced inside each
+hospital's data environment; the code run there depends on each hospital's internal tables
+and is not published. Only the resulting files, in the common specification, entered the
+analysis, where they pass the same checks as every other source (mg/dL units, plausible
+median, exact duplicates removed; ZD contained 2,350 duplicate rows).
 
 ## Source-specific notes
 
