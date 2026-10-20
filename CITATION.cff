@@ -4,9 +4,36 @@ title: "What can be measured determines what can be found: creatinine measuremen
 authors:
   - family-names: Mbambara
     given-names: Bongani
-    affiliation: "China Pharmaceutical University"
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Ai
+    given-names: Shuangfeng
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Ma
+    given-names: Yihan
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Zhao
+    given-names: Zhongxian
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Zhang
+    given-names: Jiwen
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Hao
+    given-names: Zhulin
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Gong
+    given-names: Linmin
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
+  - family-names: Peng
+    given-names: Keming
+    affiliation: "School of International Pharmaceutical Business, China Pharmaceutical University"
+  - family-names: Chen
+    given-names: Lihai
+    affiliation: "Nanjing First Hospital"
+  - family-names: Zhai
+    given-names: Yue
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
   - family-names: Zhou
     given-names: Jifang
-    affiliation: "China Pharmaceutical University"
+    affiliation: "School of Basic Medicine and Clinical Pharmacy, China Pharmaceutical University"
 license: MIT
 repository-code: "https://github.com/bongani4-ux/aki-creatinine-ascertainment"

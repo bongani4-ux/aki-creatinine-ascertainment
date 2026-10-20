@@ -2,7 +2,7 @@
 
 Code for: **What can be measured determines what can be found: creatinine measurement intensity and baseline provenance for acute kidney injury across fourteen data sources.**
 
-Bongani Mbambara, [co-authors], Jifang Zhou. Pharmacoepidemiology Research Group (CPOR), China Pharmaceutical University, Nanjing.
+Bongani Mbambara, Ai Shuangfeng, Ma Yihan, Zhao Zhongxian, Zhang Jiwen, Hao Zhulin, Linmin Gong, Peng Keming, Lihai Chen, Yue Zhai, Jifang Zhou. China Pharmaceutical University and Nanjing First Hospital, Nanjing.
 
 Acute kidney injury (AKI) is defined by a rise in serum creatinine from a baseline, so a case can be found only in a patient who was measured, and only relative to whichever earlier value is chosen as the baseline. This repository extracts the complete creatinine series from fourteen critical care and perioperative data sources and quantifies how often and when creatinine is measured, where baseline values come from, and how much the choice of baseline changes who is called a case.
 
