@@ -1,5 +1,5 @@
 # =============================================================================
-# EXPORT 3 of 3 — ZD and NJF (institutional surgical cohorts)
+# Institutional surgical cohorts (ZD, NJF, AHMU) - specification template
 #
 # This is a TEMPLATE for the hospital data team. It assumes the raw operation
 # and laboratory tables rather than the previously supplied summary extract.
@@ -166,16 +166,18 @@ ser <- merge(cr, episodes[, .(episode_id, patient_id, t0)],
 ser[, t_days := as.numeric(difftime(chart_time, t0, units = "days"))]
 ser <- ser[t_days >= -LOOKBACK_DAYS & t_days <= FOLLOWUP_DAYS]
 
+# The analysis pipeline works in mg/dL (docs/data_specification.md), so the
+# harmonised umol/L value is converted back on output.
 series <- ser[, .(source = COHORT, episode_id, patient_id, chart_time,
                   t_days = round(t_days, 5),
-                  value = round(value_umol, 2), unit = "umol/L")]
+                  value = round(value_umol / 88.42, 4), unit = "mg/dL")]
 setorder(series, episode_id, t_days)
 fwrite(series, paste0(out_dir, COHORT, "_creatinine_series.csv"))
 cat(sprintf("  series: %s rows\n", format(nrow(series), big.mark = ",")))
 
 # ---------------------------------------------------------------- 3. checks
 cat("\n=== Sanity checks ===\n")
-cat(sprintf("  median creatinine: %.1f umol/L (expect ~60-90)\n", median(series$value)))
+cat(sprintf("  median creatinine: %.2f mg/dL (expect ~0.7-1.0)\n", median(series$value)))
 n_per <- series[, .N, by = episode_id]
 cat(sprintf("  episodes with >=1 result: %s (%.1f%%)\n",
     format(uniqueN(series$episode_id), big.mark = ","),

@@ -18,17 +18,29 @@ if (length(args) >= 2 && args[1] == "--one") {
   dir.create(file.path(RESULTS_DIR, "per_source"), recursive = TRUE, showWarnings = FALSE)
   write_json(res, file.path(RESULTS_DIR, "per_source", paste0(k, ".json")),
              auto_unbox = TRUE, digits = NA, null = "null")
-  cat(sprintf("%-15s n=%9s  rule=%s\n", k, format(res$measure$n, big.mark = ","),
-              res$measure$first_episode_rule))
+  cat(sprintf("%-15s n=%9s  rule=%s  duplicates removed=%s\n", k,
+              format(res$measure$n, big.mark = ","), res$measure$first_episode_rule,
+              format(res$measure$dup_removed, big.mark = ",")))
   quit(save = "no")
 }
 
 keys <- if (length(args)) args else SOURCES$key
+unknown <- setdiff(keys, SOURCES$key)
+if (length(unknown)) stop("unknown source(s): ", paste(unknown, collapse = ", "))
 rscript <- file.path(R.home("bin"), "Rscript")
+skipped <- character()
 for (k in keys) {
+  p <- source_paths(k)
+  if (!all(file.exists(p))) {
+    # The three institutional cohorts cannot be shared, so a missing export is
+    # expected for outside users: skip it rather than stop the run.
+    message(sprintf("skipping %-15s (export files not found in %s/)", k, DATA_DIR))
+    skipped <- c(skipped, k); next
+  }
   status <- system2(rscript, c("run_all.R", "--one", shQuote(k)))
   if (status != 0) stop("analysis failed for ", k)
 }
+if (length(skipped)) message("skipped: ", paste(skipped, collapse = ", "))
 
 # ---- combine
 per <- file.path(RESULTS_DIR, "per_source")

@@ -8,6 +8,11 @@
 DATA_DIR    <- "data"
 RESULTS_DIR <- "results"
 
+# Remove exact duplicate results (same episode, same time, same value) before
+# counting. They are repeated records of one draw, not separate measurements
+# (60% of HiRID rows, 8.5% of INSPIRE, ~7% of SICdb and PIC in the exports).
+DEDUPLICATE <- TRUE
+
 SOURCES <- data.frame(
   key = c("MIMIC-IV", "eICU-CRD", "AmsterdamUMCdb", "SICdb", "NWICU", "HiRID", "Zigong",
           "PIC", "VitalDB", "INSPIRE", "MOVER", "NJF", "ZD", "AHMU"),
