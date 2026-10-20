@@ -18,8 +18,8 @@ can trigger spurious errors.
 | PIC | `PIC_export.R` | core team | as run (reads the V1.1.0 folder) |
 | AmsterdamUMCdb | `AmsterdamUMCdb_export.R` | research team | as run |
 | VitalDB | `VitalDB_export.R` | research team | rewritten to read the PhysioNet files; reproduces the published VitalDB results exactly |
-| eICU-CRD | — | research team | **to be added** |
-| MOVER | — | research team | **to be added** |
+| eICU-CRD | `eICU-CRD_export.R` | research team | as run (episode and patient counts match the paper); output names standardised, `unitvisitnumber` / `hospitaldischargeyear` added |
+| MOVER (EPIC) | `MOVER_export.R` | research team | as run (episode and patient counts match the paper); comments translated, output names standardised, `t0_source` added |
 | ZD, NJF, AHMU | `institutional/*_export.R` | research team | wrappers; **helper `export_creatinine.py` to be added** |
 
 `institutional/template_institutional_export.R` is the specification template given to
@@ -40,6 +40,14 @@ the institutional data teams.
 - **HiRID** the published export repeated each draw 2-5 times (same second and value);
   the script and the pipeline now keep one row per draw.
 - **VitalDB** creatinine is `name == "cr"` in `lab_data.csv`, already in mg/dL.
+- **eICU-CRD** times are minutes from ICU admission (t0 = 0 for every stay). Results can be
+  aligned only within one hospitalisation (`patienthealthsystemstayid`), so there is no
+  pre-hospital history. Death = hospital discharge offset when `hospitaldischargestatus` is
+  Expired.
+- **MOVER** uses the EPIC subset only (64,357 operations, 39,685 patients). Datetimes are
+  m/d/yy H:MM. t0 = entry to the operating room, else anaesthesia start, else SURGERY_DATE
+  (midnight of the operation day) for 5,174 operations (8%); `t0_source` records which.
+  In-hospital death is timed at discharge. `BIRTH_DATE` holds age in years.
 - **PIC** ships two versions in one download. Read `V1.1.0/`; the root-level files are v1.0.0.
 - **AmsterdamUMCdb** reads connection settings from environment variables (`AMDS_HOST`,
   `AMDS_PORT`, `AMDS_DB`, `AMDS_USER`). Set `PGPASSWORD` outside the script. Never write a
